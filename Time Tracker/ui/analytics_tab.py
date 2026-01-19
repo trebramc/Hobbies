@@ -78,16 +78,30 @@ def show_analytics_tab():
 
 
     # -------------------------
-    # Mood-Activity-Time Correlation
+    # Mood–Activity–Time Correlation
     # -------------------------
-    mood_time = filtered_df.groupby(['start_time', 'activity', 'mood'])['duration_hours'].sum().reset_index()
+    mood_time = (
+        filtered_df
+        .groupby(['start_time_local', 'activity', 'mood'])['duration_hours']
+        .sum()
+        .reset_index()
+    )
+    
     mood_time_chart = alt.Chart(mood_time).mark_circle(size=60).encode(
-        x=alt.X('start_time:T', title='Date & Time'),
-        y=alt.Y('duration_hours:Q', title='Hours'),
-        color='mood:N',
-        tooltip=['start_time', 'activity', 'mood', 'duration_hours']
-    ).properties(width=700, height=400)
-    st.subheader("When and during which activity do I feel this mood?")
+        x=alt.X('start_time_local:T', title='When did this happen?'),
+        y=alt.Y('duration_hours:Q', title='How long did it last? (hours)'),
+        color=alt.Color('mood:N', legend=alt.Legend(title="Mood")),
+        tooltip=[
+            alt.Tooltip('start_time_local:T', title='Time'),
+            alt.Tooltip('activity:N', title='Activity'),
+            alt.Tooltip('mood:N', title='Mood'),
+            alt.Tooltip('duration_hours:Q', title='Hours', format='.2f')
+        ]
+    ).properties(
+        height=400
+    )
+    
+    st.subheader("🕒 When and during which activities do I feel this way?")
     st.altair_chart(mood_time_chart, use_container_width=True)
 
   
