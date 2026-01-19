@@ -19,12 +19,17 @@ def show_analytics_tab():
     # -------------------------
     # Datetime handling (CRITICAL FIX)
     # -------------------------
-    df['start_time'] = pd.to_datetime(df['start_time'])
-    df['end_time'] = pd.to_datetime(df['end_time'])
+    df['start_time'] = pd.to_datetime(df['start_time'], utc=True)
+    df['end_time'] = pd.to_datetime(df['end_time'], utc=True)
+
     df['duration_hours'] = df['duration_seconds'] / 3600
 
-    # Localize to PH time then remove timezone (Altair-safe)
-    df['start_time_local'] = df['start_time']
+    # Convert UTC → Asia/Manila, then remove tz for Altair
+    df['start_time_local'] = (
+        df['start_time']
+        .dt.tz_convert('Asia/Manila')
+        .dt.tz_localize(None)
+    )
 
     # -------------------------
     # Filter by timeframe
@@ -49,7 +54,7 @@ def show_analytics_tab():
         return
 
     # -------------------------
-    # Metrics (SAFE)
+    # Metrics
     # -------------------------
     total_hours = filtered_df['duration_hours'].sum()
 
