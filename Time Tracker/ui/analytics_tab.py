@@ -24,11 +24,7 @@ def show_analytics_tab():
     df['duration_hours'] = df['duration_seconds'] / 3600
 
     # Localize to PH time then remove timezone (Altair-safe)
-    df['start_time_local'] = (
-        df['start_time']
-        .dt.tz_localize('Asia/Manila', ambiguous='NaT', nonexistent='NaT')
-        .dt.tz_localize(None)
-    )
+    df['start_time_local'] = df['start_time']
 
     # -------------------------
     # Filter by timeframe
