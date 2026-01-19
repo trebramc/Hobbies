@@ -8,43 +8,73 @@ def show_analytics_tab():
 
     st.subheader("Understand your productivity patterns")
 
+    # -------------------------
     # Load logs
+    # -------------------------
     df = load_logs()
     if df.empty:
         st.info("No logs yet. Start logging activities first!")
         return
 
-    # Ensure datetime
+    # -------------------------
+    # Datetime handling (CRITICAL FIX)
+    # -------------------------
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['end_time'] = pd.to_datetime(df['end_time'])
     df['duration_hours'] = df['duration_seconds'] / 3600
 
+    # Localize to PH time then remove timezone (Altair-safe)
+    df['start_time_local'] = (
+        df['start_time']
+        .dt.tz_localize('Asia/Manila', ambiguous='NaT', nonexistent='NaT')
+        .dt.tz_localize(None)
+    )
+
     # -------------------------
     # Filter by timeframe
     # -------------------------
-    min_date = df['start_time'].min().date()
-    max_date = df['start_time'].max().date()
+    min_date = df['start_time_local'].min().date()
+    max_date = df['start_time_local'].max().date()
+
     start_date, end_date = st.date_input(
         "Select date range",
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date
     )
-    filtered_df = df[(df['start_time'].dt.date >= start_date) & (df['start_time'].dt.date <= end_date)]
+
+    filtered_df = df[
+        (df['start_time_local'].dt.date >= start_date) &
+        (df['start_time_local'].dt.date <= end_date)
+    ]
 
     if filtered_df.empty:
         st.warning("No activities in the selected timeframe.")
         return
 
     # -------------------------
-    # Metrics
+    # Metrics (SAFE)
     # -------------------------
     total_hours = filtered_df['duration_hours'].sum()
-    daily_hours = filtered_df.groupby(filtered_df['start_time'].dt.date)['duration_hours'].sum()
+
+    daily_hours = (
+        filtered_df
+        .groupby(filtered_df['start_time_local'].dt.date)['duration_hours']
+        .sum()
+    )
     avg_daily = daily_hours.mean()
-    total_sessions = filtered_df.shape[0]
-    top_category = filtered_df['category'].mode().iloc[0]
-    top_mood = filtered_df['mood'].mode().iloc[0]  # <-- Top Mood metric
+
+    total_sessions = len(filtered_df)
+
+    top_category = (
+        filtered_df['category'].mode().iloc[0]
+        if not filtered_df['category'].dropna().empty else "N/A"
+    )
+
+    top_mood = (
+        filtered_df['mood'].mode().iloc[0]
+        if not filtered_df['mood'].dropna().empty else "N/A"
+    )
 
     # -------------------------
     # Display metrics
@@ -59,23 +89,36 @@ def show_analytics_tab():
     st.markdown("---")
 
     # -------------------------
-    # Weekly Bar Graph (hours per weekday)
+    # Weekly Bar Graph
     # -------------------------
-    filtered_df['weekday'] = filtered_df['start_time'].dt.day_name()
-    weekly_hours = filtered_df.groupby('weekday')['duration_hours'].sum().reindex(
-        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    ).reset_index()
+    filtered_df['weekday'] = filtered_df['start_time_local'].dt.day_name()
 
-    st.subheader("How many hours do I spend each day of the week?")
+    weekday_order = [
+        'Monday', 'Tuesday', 'Wednesday',
+        'Thursday', 'Friday', 'Saturday', 'Sunday'
+    ]
+
+    weekly_hours = (
+        filtered_df
+        .groupby('weekday')['duration_hours']
+        .sum()
+        .reindex(weekday_order, fill_value=0)
+        .reset_index()
+    )
+
+    st.subheader("How much time do I spend on each day of the week?")
     weekly_chart = alt.Chart(weekly_hours).mark_bar(color="#FFD700").encode(
-        x=alt.X('weekday:N', title='Day of Week'),
+        x=alt.X('weekday:N', sort=weekday_order, title='Day of Week'),
         y=alt.Y('duration_hours:Q', title='Total Hours'),
-        tooltip=['weekday', 'duration_hours']
-    ).properties(width=700, height=400)
+        tooltip=[
+            alt.Tooltip('weekday:N', title='Day'),
+            alt.Tooltip('duration_hours:Q', title='Hours', format='.2f')
+        ]
+    ).properties(height=400)
+
     st.altair_chart(weekly_chart, use_container_width=True)
 
     st.markdown("---")
-
 
     # -------------------------
     # Mood–Activity–Time Correlation
@@ -86,7 +129,7 @@ def show_analytics_tab():
         .sum()
         .reset_index()
     )
-    
+
     mood_time_chart = alt.Chart(mood_time).mark_circle(size=60).encode(
         x=alt.X('start_time_local:T', title='When did this happen?'),
         y=alt.Y('duration_hours:Q', title='How long did it last? (hours)'),
@@ -97,12 +140,8 @@ def show_analytics_tab():
             alt.Tooltip('mood:N', title='Mood'),
             alt.Tooltip('duration_hours:Q', title='Hours', format='.2f')
         ]
-    ).properties(
-        height=400
-    )
-    
-    st.subheader("🕒 When and during which activities do I feel this way?")
+    ).properties(height=400)
+
+    st.subheader("When and during which activities do I feel this way?")
     st.altair_chart(mood_time_chart, use_container_width=True)
 
-  
- 
