@@ -121,19 +121,16 @@ def show_analytics_tab():
 
     st.markdown("---")
 
-    # -------------------------
+   # -------------------------
     # Mood–Activity–Time Correlation (24-hour, date-independent)
     # -------------------------
     
-    # Extract time of day as float (0–24)
-    filtered_df['hour_float'] = (
-        filtered_df['start_time_local'].dt.hour +
-        filtered_df['start_time_local'].dt.minute / 60
-    )
+    # Extract hour as integer (0–23)
+    filtered_df['hour'] = filtered_df['start_time_local'].dt.hour
     
     mood_time = (
         filtered_df
-        .groupby(['hour_float', 'activity', 'mood'], as_index=False)['duration_hours']
+        .groupby(['hour', 'activity', 'mood'], as_index=False)['duration_hours']
         .sum()
     )
     
@@ -142,11 +139,10 @@ def show_analytics_tab():
         .mark_circle(size=70, opacity=0.7)
         .encode(
             x=alt.X(
-                'hour_float:Q',
+                'hour:O',  # ORDINAL — forces discrete hourly ticks
                 title='What time of day does this usually happen?',
-                scale=alt.Scale(domain=[0, 24]),
+                sort=list(range(24)),
                 axis=alt.Axis(
-                    values=list(range(0, 25, 1)),  # hourly ticks
                     labelExpr="""
                         datum.value == 0 ? '12 AM' :
                         datum.value < 12 ? datum.value + ' AM' :
@@ -167,11 +163,7 @@ def show_analytics_tab():
                 alt.Tooltip('activity:N', title='Activity'),
                 alt.Tooltip('mood:N', title='Mood'),
                 alt.Tooltip('duration_hours:Q', title='Hours', format='.2f'),
-                alt.Tooltip(
-                    'hour_float:Q',
-                    title='Time of Day',
-                    format='.2f'
-                )
+                alt.Tooltip('hour:O', title='Hour')
             ]
         )
         .properties(height=400)
